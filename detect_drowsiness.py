@@ -20,6 +20,8 @@ import dlib
 import cv2
 import logging
 
+SOURCES = "sources"
+
 VIDEO_FILE = "--video_file"
 
 WEBCAM = "--webcam"
@@ -89,20 +91,16 @@ def main():
     detector, predictor = init_dlib_detector_and_predictor(args["shape_predictor"])
 
     # start the video stream thread
-    vs = None
-    # if args[WEBCAM]:
-    # log.debug("Starting video stream thread...")
-    # vs = VideoStream(src=args["webcam"]).start()
-    # time.sleep(1.0)
-    # elif args[VIDEO_FILE]:
-    log.debug("Grabbing video stream from file in {0}".format(args["video_file"]))
-    if not os.path.exists(args["video_file"]):
-        raise Exception("Video file doesn't exist")
-    vs = cv2.VideoCapture(args["video_file"])
-    # vs = FileVideoStream(args["video_file"], queueSize=2048)
-    # vs.start()
-    log.debug("is file opened? " + str(vs.isOpened()))
-    # time.sleep(1)
+    if "video_file" in args:
+        log.debug("Grabbing video stream from file in {0}".format(args["video_file"]))
+        if not os.path.exists(args["video_file"]):
+            raise Exception(args["video_file"] + " doesn't exist!")
+        vs = cv2.VideoCapture(args["video_file"])
+        log.debug("is file opened? " + str(vs.isOpened()))
+    else:
+        log.debug("Starting video stream thread...")
+        vs = VideoStream(src=args["webcam"]).start()
+    time.sleep(1.0)
 
     # initialize the frame counter as well as a boolean used to
     # indicate if the alarm is going off
@@ -114,8 +112,11 @@ def main():
         # it, and convert it to grayscale
         # channels)
         log.debug("reading frame")
-        ret, frame = vs.read()
-        log.debug("frame read! :)" + str(ret))
+        if "video_file" in args:
+            ret, frame = vs.read()
+            log.debug("frame read! :)" + str(ret))
+        else:
+            frame = vs.read()
         frame = imutils.resize(frame, width=450)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -222,19 +223,20 @@ def calculate_eye_aspect_ratio_thresholds():
 
 def parse_cli_args():
     ap = argparse.ArgumentParser()
-    ap.add_argument("-p", "--shape-predictor",  # required=True,
-                    help="path to facial landmark predictor")
-    ap.add_argument("-a", "--alarm", type=str, default="",
+    # ap.add_argument("-p", "--shape-predictor", help="path to facial landmark predictor")
+    ap.add_argument("-a", "--alarm", type=str, default=os.path.join(SOURCES, "alarm.wav"),
                     help="path alarm .WAV file")
-    source = ap.add_mutually_exclusive_group()
-    source.add_argument("-w", WEBCAM, type=int, default=0,
-                        help="index of webcam on system")
-    source.add_argument("-f", VIDEO_FILE, type=str, default="",
-                        help="Path to face video file")
+
+    input_subparsers = ap.add_subparsers(help="Types of inputs (video sources)")
+    camera_parser = input_subparsers.add_parser("cam")
+    file_parser = input_subparsers.add_parser("file")
+
+    camera_parser.add_argument("-w", WEBCAM, type=int, default=0, required=True,
+                               help="index of webcam on system")
+    file_parser.add_argument("-f", VIDEO_FILE, type=str, default="", required=True,
+                             help="Path to face video file")
     args = vars(ap.parse_args())
-    # todo fix this, why isn't -p working?
-    args["shape_predictor"] = r"sources\shape_predictor_68_face_landmarks.dat"
-    args["video_file"] = r"sources\sample2.avi"
+    args["shape_predictor"] = os.path.join(SOURCES, "shape_predictor_68_face_landmarks.dat")
     return args
 
 

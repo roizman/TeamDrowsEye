@@ -5,6 +5,7 @@
 # import the necessary packages
 from logging.config import dictConfig
 
+import os
 from scipy.spatial import distance as dist
 from imutils.video import VideoStream
 from imutils.video.filevideostream import FileVideoStream
@@ -72,9 +73,6 @@ def eye_aspect_ratio(eye):
     return ear
 
 
-def get_video_stream(input_type, )
-
-
 # consts
 # grab the indexes of the facial landmarks for the left and
 # right eye, respectively
@@ -92,13 +90,19 @@ def main():
 
     # start the video stream thread
     vs = None
-    if args[WEBCAM]:
-        log.debug("Starting video stream thread...")
-        vs = VideoStream(src=args["webcam"]).start()
-        time.sleep(1.0)
-    elif args[VIDEO_FILE]:
-        log.debug("Grabbing video stream from file in {0}".format(args[VIDEO_FILE]))
-        vs = FileVideoStream(args[VIDEO_FILE]).start()
+    #if args[WEBCAM]:
+    #log.debug("Starting video stream thread...")
+    #vs = VideoStream(src=args["webcam"]).start()
+    #time.sleep(1.0)
+    #elif args[VIDEO_FILE]:
+    log.debug("Grabbing video stream from file in {0}".format(args["video_file"]))
+    if not os.path.exists(args["video_file"]):
+        raise ("panic")
+    vs = cv2.VideoCapture(args["video_file"])
+    #vs = FileVideoStream(args["video_file"], queueSize=2048)
+    #vs.start()
+    log.debug("is file opened? " + str(vs.isOpened()))
+    #time.sleep(1)
 
     # initialize the frame counter as well as a boolean used to
     # indicate if the alarm is going off
@@ -109,7 +113,9 @@ def main():
         # grab the frame from the threaded video file stream, resize
         # it, and convert it to grayscale
         # channels)
-        frame = vs.read()
+        log.debug("reading frame")
+        ret, frame = vs.read()
+        log.debug("frame read! :)" + str(ret))
         frame = imutils.resize(frame, width=450)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -188,7 +194,8 @@ def main():
 
     # do a bit of cleanup
     cv2.destroyAllWindows()
-    vs.stop()
+    #vs.stop()
+    vs.release()
 
 
 def init_dlib_detector_and_predictor(shape_predictor):
@@ -216,13 +223,15 @@ def parse_cli_args():
                     help="path to facial landmark predictor")
     ap.add_argument("-a", "--alarm", type=str, default="",
                     help="path alarm .WAV file")
-    ap.add_argument("-w", "%s" % WEBCAM, type=int, default=0,
+    source = ap.add_mutually_exclusive_group()
+    source.add_argument("-w", WEBCAM, type=int, default=0,
                     help="index of webcam on system")
-    ap.add_argument("-f", "%s" % VIDEO_FILE, type=str, default="",
+    source.add_argument("-f", VIDEO_FILE, type=str, default="",
                     help="Path to face video file")
     args = vars(ap.parse_args())
     # todo fix this, why isn't -p working?
     args["shape_predictor"] = r"sources\shape_predictor_68_face_landmarks.dat"
+    args["video_file"] = r"sources\sample2.avi"
     return args
 
 

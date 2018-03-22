@@ -16,7 +16,7 @@ import imutils
 import playsound
 from imutils.video import VideoStream
 
-from FacialStateDetector import EyesShutDetector
+from FacialStateDetector import EyesShutDetector, JawDirectionDetector, distance
 
 SOURCES = "sources"
 
@@ -78,7 +78,11 @@ def main():
     # indicate if the alarm is going off
     is_alarm_on = False
     # loop over frames from the video stream
-    eyes_shut_state_detector = EyesShutDetector(detector, predictor)
+    state_detectors = [
+        EyesShutDetector(detector, predictor)
+        , JawDirectionDetector(detector, predictor)
+    ]
+
     while True:
         # grab the frame from the threaded video file stream, resize
         # it, and convert it to grayscale
@@ -92,34 +96,13 @@ def main():
 
         frame = imutils.resize(frame, width=450)
 
-        eyes_shut_state_detector.push_frame(frame)
+        for state_detector in state_detectors:
+            state_detector.push_frame(frame)
+            if state_detector.is_above_threshold():
+                raise_alarm(args, frame, is_alarm_on)
 
-        leftEye, rightEye = EyesShutDetector.get_eyes_from_frame(frame, detector, predictor)
-        # compute the convex hull for the left and right eye, then
-        # visualize each of the eyes
-        if leftEye is not None and rightEye is not None:
-            leftEyeHull = cv2.convexHull(leftEye)
-            rightEyeHull = cv2.convexHull(rightEye)
-            cv2.drawContours(frame, [leftEyeHull], -1, (0, 255, 0), 1)
-            cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
-
-        if eyes_shut_state_detector.is_above_threshold():
-            # if the alarm is not on, turn it on
-            if not is_alarm_on:
-                is_alarm_on = True
-
-                # check to see if an alarm file was supplied,
-                # and if so, start a thread to have the alarm
-                # sound played in the background
-                if args["alarm"] != "":
-                    t = Thread(target=sound_alarm,
-                               args=(args["alarm"],))
-                    t.deamon = True
-                    t.start()
-
-            # draw an alarm on the frame
-            cv2.putText(frame, "DROWSINESS ALERT!", (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        draw_eyes_on_frame(frame, detector, predictor)
+        draw_jaw_on_frame(detector, frame, predictor)
 
         # show the frame
         cv2.imshow("Frame", frame)
@@ -133,6 +116,69 @@ def main():
     cv2.destroyAllWindows()
     # vs.stop()
     vs.release()
+
+
+def raise_alarm(args, frame, is_alarm_on):
+    # if the alarm is not on, turn it on
+    if not is_alarm_on:
+        is_alarm_on = True
+
+        # check to see if an alarm file was supplied,
+        # and if so, start a thread to have the alarm
+        # sound played in the background
+        if args["alarm"] != "":
+            t = Thread(target=sound_alarm,
+                       args=(args["alarm"],))
+            t.deamon = True
+            t.start()
+    # draw an alarm on the frame
+    cv2.putText(frame, "DROWSINESS ALERT!", (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+
+def draw_jaw_on_frame(detector, frame, predictor):
+    jaw = JawDirectionDetector.get_jaw_from_frame(frame, detector, predictor)
+    left_eye, right_eye = EyesShutDetector.get_eyes_from_frame(frame, detector, predictor)
+
+    for point in range(1, len(jaw)):
+        ptA = tuple(jaw[point - 1])
+        ptB = tuple(jaw[point])
+        cv2.line(frame, ptA, ptB, (255, 0, 0), 2)
+
+    jawStart = jaw[0]
+    jawEnd = jaw[len(jaw) - 1]
+    leftEyeEdge = left_eye[len(left_eye) - 3]
+    rightEyeEdge = right_eye[0]
+
+    cv2.line(frame, tuple(jawStart), tuple(rightEyeEdge), (0, 0, 255), 2)
+    cv2.line(frame, tuple(jawEnd), tuple(leftEyeEdge), (0, 0, 255), 2)
+
+    rightEyeDistance = distance(jawStart, rightEyeEdge)
+    leftEyeDistance = distance(jawEnd, leftEyeEdge)
+    eyeRatio = rightEyeDistance / leftEyeDistance
+    rightThreshold = 3
+    leftThreshold = (1 / float(rightThreshold))
+
+    if eyeRatio > rightThreshold:
+        cv2.putText(frame, "Right", (10, 250),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    elif eyeRatio < leftThreshold:
+        cv2.putText(frame, "Left", (10, 250),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    else:
+        cv2.putText(frame, "Center", (10, 250),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+
+def draw_eyes_on_frame(frame, detector, predictor):
+    leftEye, rightEye = EyesShutDetector.get_eyes_from_frame(frame, detector, predictor)
+    # compute the convex hull for the left and right eye, then
+    # visualize each of the eyes
+    if leftEye is not None and rightEye is not None:
+        leftEyeHull = cv2.convexHull(leftEye)
+        rightEyeHull = cv2.convexHull(rightEye)
+        cv2.drawContours(frame, [leftEyeHull], -1, (0, 255, 0), 1)
+        cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
 
 
 def init_dlib_detector_and_predictor(shape_predictor):

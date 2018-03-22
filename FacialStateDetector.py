@@ -1,11 +1,13 @@
 import cv2
 from imutils import face_utils
 from scipy.spatial import distance as dist
+import numpy as np
 
 # grab the indexes of the facial landmarks for the left and
 # right eye, respectively
 (lStart, lEnd) = face_utils.FACIAL_LANDMARKS_IDXS["left_eye"]
 (rStart, rEnd) = face_utils.FACIAL_LANDMARKS_IDXS["right_eye"]
+(jaw_start, jaw_end) = face_utils.FACIAL_LANDMARKS_IDXS["jaw"]
 
 
 class FacialStateDetector(object):
@@ -103,3 +105,67 @@ class EyesShutDetector(FacialStateDetector):
             right_eye = shape[rStart:rEnd]
 
         return left_eye, right_eye
+
+
+class JawDirectionDetector(FacialStateDetector):
+    def __init__(self, detector, predictor):
+        super(JawDirectionDetector, self).__init__(detector, predictor)
+        self.is_good = True
+
+    def is_state_triggered(self, frame):
+        jaw = self.get_jaw_from_frame(frame, self.detector, self.predictor)
+        left_eye, right_eye = EyesShutDetector.get_eyes_from_frame(frame, self.detector, self.predictor)
+
+        for point in range(1, len(jaw)):
+            ptA = tuple(jaw[point - 1])
+            ptB = tuple(jaw[point])
+            cv2.line(frame, ptA, ptB, (255, 0, 0), 2)
+
+        jawStart = jaw[0]
+        jawEnd = jaw[len(jaw) - 1]
+
+        leftEyeEdge = left_eye[len(left_eye) - 3]
+        rightEyeEdge = right_eye[0]
+
+        rightEyeDistance = distance(jawStart, rightEyeEdge)
+        leftEyeDistance = distance(jawEnd, leftEyeEdge)
+        eyeRatio = rightEyeDistance / leftEyeDistance
+        rightThreshold = 3
+        leftThreshold = (1 / float(rightThreshold))
+
+        if eyeRatio > rightThreshold:
+            self.is_good = False
+        elif eyeRatio < leftThreshold:
+            self.is_good = False
+        else:
+            self.is_good = True
+
+    def is_above_threshold(self):
+        return self.is_good
+
+    @staticmethod
+    def get_jaw_from_frame(frame, detector, predictor):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # detect faces in the grayscale frame
+        rects = detector(gray, 0)
+
+        # get biggest rectangle (which should be the driver
+        rect = max(rects, key=lambda rect1: rect1.area()) if rects else None
+
+        jaw = None
+        # loop over the face detections
+        if rect:
+            # determine the facial landmarks for the face region, then
+            # convert the facial landmark (x, y)-coordinates to a NumPy
+            # array
+            shape = predictor(gray, rect)
+            shape = face_utils.shape_to_np(shape)
+
+            jaw = shape[jaw_start:jaw_end]
+
+        return jaw
+
+
+def distance(point1, point2):
+    return np.sqrt(((point1[0] - point2[0]) * 2) + ((point1[1] - point2[1]) * 2))

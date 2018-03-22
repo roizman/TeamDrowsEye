@@ -234,8 +234,8 @@ while True:
             p1 = (int(image_points[0][0]), int(image_points[0][1]))
             p2 = (int(nose_end_point2D[0][0][0]), int(nose_end_point2D[0][0][1]))
 
-            # if eyeRatio > rightThreshold or eyeRatio < leftThreshold:
-            cv2.line(frame, p1, p2, (255, 0, 0), 2)
+            if eyeRatio > rightThreshold or eyeRatio < leftThreshold:
+                cv2.line(frame, p1, p2, (255, 0, 0), 2)
 
         # check to see if the eye aspect ratio is below the blink
         # threshold, and if so, increment the blink frame counter

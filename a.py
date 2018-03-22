@@ -5,6 +5,7 @@
 import argparse
 import time
 from threading import Thread
+import os
 
 import cv2
 import dlib
@@ -40,7 +41,7 @@ def eye_aspect_ratio(eye):
 
 
 def distance(point1, point2):
-    return np.sqrt(((point1[0] - point2[0]) * 2) + ((point1[1] - point2[1]) * 2))
+    return np.sqrt(((point1[0] - point2[0]) ** 2) + ((point1[1] - point2[1]) ** 2))
 
 
 # construct the argument parse and parse the arguments
@@ -65,6 +66,7 @@ EYE_AR_CONSEC_FRAMES = 30
 # indicate if the alarm is going off
 COUNTER = 0
 ALARM_ON = True
+live_video = False
 
 # initialize dlib's face detector (HOG-based) and then create
 # the facial landmark predictor
@@ -83,20 +85,28 @@ predictor = dlib.shape_predictor(args["shape_predictor"])
 # frameHeight = 1200
 # frameWidth = 680
 
-frameHeight = 800
+frameHeight = 450
 frameWidth = 800
 
 # start the video stream thread
-print("[INFO] starting video stream thread...")
-vs = VideoStream(src=args["webcam"]).start()
-time.sleep(1.0)
-
+if live_video:
+    print("[INFO] starting video stream thread...")
+    vs = VideoStream(src=args["webcam"]).start()
+    time.sleep(1.0)
+else:
+    video_file_path = os.path.join("sources", "sample3.avi")
+    if not os.path.exists(video_file_path):
+        raise Exception(video_file_path + " doesn't exist!")
+    vs = cv2.VideoCapture(video_file_path)
 # loop over frames from the video stream
 while True:
     # grab the frame from the threaded video file stream, resize
     # it, and convert it to grayscale
     # channels)
-    frame = vs.read()
+    if live_video:
+        frame = vs.read()
+    else:
+        ret, frame = vs.read()
     frame = imutils.resize(frame, height=frameHeight, width=frameWidth)
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -140,13 +150,13 @@ while True:
         rightEyeDistance = distance(jawStart, rightEyeEdge)
         leftEyeDistance = distance(jawEnd, leftEyeEdge)
         eyeRatio = rightEyeDistance / leftEyeDistance
-        rightThreshold = 3
+        rightThreshold = 5
         leftThreshold = (1 / float(rightThreshold))
         bottomRight = (int(0.9 * frameWidth), int(0.7 * frameHeight))
         bottomMiddle = (int(0.45 * frameWidth), int(0.7 * frameHeight))
         bottomLeft = (int(0.075 * frameWidth), int(0.7 * frameHeight))
         yawnThreshold = int(0.06 * frameHeight)
-
+        print(eyeRatio)
         if eyeRatio > rightThreshold:
             cv2.putText(frame, "Right", bottomRight,
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
@@ -204,34 +214,27 @@ while True:
             # 3D model points.
             model_points = np.array([
                 (0.0, 0.0, 0.0),  # Nose tip
-                (0.0, -330.0, -65.0),  # Chin
-                (-225.0, 170.0, -135.0),  # Left eye left corner
-                (225.0, 170.0, -135.0),  # Right eye right corne
-                (-150.0, -150.0, -125.0),  # Left Mouth corner
-                (150.0, -150.0, -125.0)  # Right mouth corner
-
+                (0.0, -(330.0/675)*450, -65.0),  # Chin
+                (-(225.0/1200)*800, (170.0/675)*450, -135.0),  # Left eye left corner
+                ((225.0/1200)*800, (170.0/675)*450, -135.0),  # Right eye right corner
+                (-(150.0/1200)*800, -(150.0/675)*450, -125.0),  # Left Mouth corner
+                ((150.0/1200)*800, -(150.0/675)*450, -125.0)  # Right mouth corner
             ])
 
             focal_length = frame_shape[1]
             center = (frame_shape[1] / 2, frame_shape[0] / 2)
-            camera_matrix = np.array(
-                [[focal_length, 0, center[0]],
-                 [0, focal_length, center[1]],
-                 [0, 0, 1]], dtype="double")
+            camera_matrix = np.array([[focal_length, 0, center[0]], [0, focal_length, center[1]], [0, 0, 1]], dtype="double")
             dist_coeffs = np.zeros((4, 1))
-            (success, rotation_vector, translation_vector) = cv2.solvePnP(model_points, image_points,
-                                                                          camera_matrix, dist_coeffs,
-                                                                          flags=cv2.CV_ITERATIVE)
+            (success, rotation_vector, translation_vector) = cv2.solvePnP(model_points, image_points, camera_matrix, dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
 
-            (nose_end_point2D, jacobian) = cv2.projectPoints(np.array([(0.0, 0.0, 1000.0)]),
-                                                             rotation_vector, translation_vector,
-                                                             camera_matrix, dist_coeffs)
+            (nose_end_point2D, jacobian) = cv2.projectPoints(np.array([(0.0, 0.0, 1000.0)]), rotation_vector, translation_vector, camera_matrix, dist_coeffs)
 
             for p in image_points:
                 cv2.circle(frame, (int(p[0]), int(p[1])), 3, (0, 0, 255), -1)
             p1 = (int(image_points[0][0]), int(image_points[0][1]))
             p2 = (int(nose_end_point2D[0][0][0]), int(nose_end_point2D[0][0][1]))
 
+            # if eyeRatio > rightThreshold or eyeRatio < leftThreshold:
             cv2.line(frame, p1, p2, (255, 0, 0), 2)
 
         # check to see if the eye aspect ratio is below the blink
@@ -281,4 +284,7 @@ while True:
 
 # do a bit of cleanup
 cv2.destroyAllWindows()
-vs.stop()
+if live_video:
+    vs.stop()
+else:
+    vs.release()

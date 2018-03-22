@@ -11,14 +11,12 @@ import numpy as np
 
 
 class FacialStateDetector(object):
-    def __init__(self, detector, predictor):
+    def __init__(self):
         self.frame_counter = 0
-        self.detector = detector
-        self.predictor = predictor
 
-    def push_frame(self, frame):
+    def push_frame(self, *args):
 
-        if self.is_state_triggered(frame):
+        if self.is_state_triggered(*args):
             self.frame_counter += 1
         else:
             self.frame_counter = 0
@@ -26,7 +24,7 @@ class FacialStateDetector(object):
     def is_above_threshold(self):
         pass
 
-    def is_state_triggered(self, gray_image):
+    def is_state_triggered(self, *args):
         pass
 
 
@@ -52,12 +50,10 @@ def eye_aspect_ratio(eye):
 
 
 class EyesShutDetector(FacialStateDetector):
-    def __init__(self, detector, predictor):
-        super(EyesShutDetector, self).__init__(detector, predictor)
 
-    def is_state_triggered(self, frame):
-        left_eye, right_eye = self.get_eyes_from_frame(frame, self.detector, self.predictor)
-
+    def is_state_triggered(self, *args):
+        left_eye = args[0]
+        right_eye = args[1]
         if left_eye is not None:
             leftEAR = eye_aspect_ratio(left_eye)
             rightEAR = eye_aspect_ratio(right_eye)
@@ -69,12 +65,6 @@ class EyesShutDetector(FacialStateDetector):
             # threshold, and if so, increment the blink frame counter
             if ear < EYE_AR_THRESH:
                 return True
-
-            # draw the computed eye aspect ratio on the frame to help
-            # with debugging and setting the correct eye aspect ratio
-            # thresholds and frame counters
-            cv2.putText(frame, "EAR: {:.2f}".format(ear), (300, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         return False
 
     def is_above_threshold(self):
@@ -108,18 +98,14 @@ class EyesShutDetector(FacialStateDetector):
 
 
 class JawDirectionDetector(FacialStateDetector):
-    def __init__(self, detector, predictor):
-        super(JawDirectionDetector, self).__init__(detector, predictor)
-        self.is_good = True
+    def __init__(self):
+        super(JawDirectionDetector, self).__init__()
+        self._is_good = True
 
-    def is_state_triggered(self, frame):
-        jaw = self.get_jaw_from_frame(frame, self.detector, self.predictor)
-        left_eye, right_eye = EyesShutDetector.get_eyes_from_frame(frame, self.detector, self.predictor)
-
-        for point in range(1, len(jaw)):
-            ptA = tuple(jaw[point - 1])
-            ptB = tuple(jaw[point])
-            cv2.line(frame, ptA, ptB, (255, 0, 0), 2)
+    def is_state_triggered(self, *args):
+        jaw = args[0]
+        left_eye = args[1]
+        right_eye = args[2]
 
         jawStart = jaw[0]
         jawEnd = jaw[len(jaw) - 1]
@@ -134,14 +120,14 @@ class JawDirectionDetector(FacialStateDetector):
         leftThreshold = (1 / float(rightThreshold))
 
         if eyeRatio > rightThreshold:
-            self.is_good = False
+            self._is_good = False
         elif eyeRatio < leftThreshold:
-            self.is_good = False
+            self._is_good = False
         else:
-            self.is_good = True
+            self._is_good = True
 
     def is_above_threshold(self):
-        return self.is_good
+        return not self._is_good
 
     @staticmethod
     def get_jaw_from_frame(frame, detector, predictor):

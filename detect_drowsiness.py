@@ -74,14 +74,9 @@ def main():
         vs = VideoStream(src=args["webcam"]).start()
     time.sleep(1.0)
 
-    # initialize the frame counter as well as a boolean used to
-    # indicate if the alarm is going off
-    is_alarm_on = False
     # loop over frames from the video stream
-    state_detectors = [
-        EyesShutDetector(detector, predictor)
-        , JawDirectionDetector(detector, predictor)
-    ]
+    eyes_detector = EyesShutDetector()
+    jaw_detector = JawDirectionDetector()
 
     while True:
         # grab the frame from the threaded video file stream, resize
@@ -95,14 +90,18 @@ def main():
             frame = vs.read()
 
         frame = imutils.resize(frame, width=450)
+        jaw = JawDirectionDetector.get_jaw_from_frame(frame, detector, predictor)
+        left_eye, right_eye = EyesShutDetector.get_eyes_from_frame(frame, detector, predictor)
 
-        for state_detector in state_detectors:
-            state_detector.push_frame(frame)
-            if state_detector.is_above_threshold():
-                raise_alarm(args, frame, is_alarm_on)
+        eyes_detector.push_frame(left_eye, right_eye)
+        jaw_detector.push_frame(jaw, left_eye, right_eye)
+        if eyes_detector.is_above_threshold() or jaw_detector.is_above_threshold():
+            raise_alarm(args, frame)
+        else:
+            print("AWAKE!!!")
 
-        draw_eyes_on_frame(frame, detector, predictor)
-        draw_jaw_on_frame(detector, frame, predictor)
+        draw_eyes_on_frame(frame, left_eye, right_eye)
+        draw_jaw_on_frame(frame, jaw, left_eye, right_eye)
 
         # show the frame
         cv2.imshow("Frame", frame)
@@ -118,28 +117,21 @@ def main():
     vs.release()
 
 
-def raise_alarm(args, frame, is_alarm_on):
-    # if the alarm is not on, turn it on
-    if not is_alarm_on:
-        is_alarm_on = True
-
-        # check to see if an alarm file was supplied,
-        # and if so, start a thread to have the alarm
-        # sound played in the background
-        if args["alarm"] != "":
-            t = Thread(target=sound_alarm,
-                       args=(args["alarm"],))
-            t.deamon = True
-            t.start()
+def raise_alarm(arguments, frame):
+    # check to see if an alarm file was supplied,
+    # and if so, start a thread to have the alarm
+    # sound played in the background
+    if arguments["alarm"] != "":
+        t = Thread(target=sound_alarm,
+                   args=(arguments["alarm"],))
+        t.deamon = True
+        t.start()
     # draw an alarm on the frame
     cv2.putText(frame, "DROWSINESS ALERT!", (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
 
-def draw_jaw_on_frame(detector, frame, predictor):
-    jaw = JawDirectionDetector.get_jaw_from_frame(frame, detector, predictor)
-    left_eye, right_eye = EyesShutDetector.get_eyes_from_frame(frame, detector, predictor)
-
+def draw_jaw_on_frame(frame, jaw, left_eye, right_eye):
     for point in range(1, len(jaw)):
         ptA = tuple(jaw[point - 1])
         ptB = tuple(jaw[point])
@@ -170,13 +162,12 @@ def draw_jaw_on_frame(detector, frame, predictor):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
 
-def draw_eyes_on_frame(frame, detector, predictor):
-    leftEye, rightEye = EyesShutDetector.get_eyes_from_frame(frame, detector, predictor)
+def draw_eyes_on_frame(frame, left_eye, right_eye):
     # compute the convex hull for the left and right eye, then
     # visualize each of the eyes
-    if leftEye is not None and rightEye is not None:
-        leftEyeHull = cv2.convexHull(leftEye)
-        rightEyeHull = cv2.convexHull(rightEye)
+    if left_eye is not None and right_eye is not None:
+        leftEyeHull = cv2.convexHull(left_eye)
+        rightEyeHull = cv2.convexHull(right_eye)
         cv2.drawContours(frame, [leftEyeHull], -1, (0, 255, 0), 1)
         cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
 

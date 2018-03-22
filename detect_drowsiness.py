@@ -97,7 +97,7 @@ def main():
     #elif args[VIDEO_FILE]:
     log.debug("Grabbing video stream from file in {0}".format(args["video_file"]))
     if not os.path.exists(args["video_file"]):
-        raise ("panic")
+        raise Exception("Video file doesn't exist")
     vs = cv2.VideoCapture(args["video_file"])
     #vs = FileVideoStream(args["video_file"], queueSize=2048)
     #vs.start()

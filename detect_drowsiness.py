@@ -90,19 +90,19 @@ def main():
 
     # start the video stream thread
     vs = None
-    #if args[WEBCAM]:
-    #log.debug("Starting video stream thread...")
-    #vs = VideoStream(src=args["webcam"]).start()
-    #time.sleep(1.0)
-    #elif args[VIDEO_FILE]:
+    # if args[WEBCAM]:
+    # log.debug("Starting video stream thread...")
+    # vs = VideoStream(src=args["webcam"]).start()
+    # time.sleep(1.0)
+    # elif args[VIDEO_FILE]:
     log.debug("Grabbing video stream from file in {0}".format(args["video_file"]))
     if not os.path.exists(args["video_file"]):
         raise Exception("Video file doesn't exist")
     vs = cv2.VideoCapture(args["video_file"])
-    #vs = FileVideoStream(args["video_file"], queueSize=2048)
-    #vs.start()
+    # vs = FileVideoStream(args["video_file"], queueSize=2048)
+    # vs.start()
     log.debug("is file opened? " + str(vs.isOpened()))
-    #time.sleep(1)
+    # time.sleep(1)
 
     # initialize the frame counter as well as a boolean used to
     # indicate if the alarm is going off
@@ -194,7 +194,7 @@ def main():
 
     # do a bit of cleanup
     cv2.destroyAllWindows()
-    #vs.stop()
+    # vs.stop()
     vs.release()
 
 
@@ -225,9 +225,9 @@ def parse_cli_args():
                     help="path alarm .WAV file")
     source = ap.add_mutually_exclusive_group()
     source.add_argument("-w", WEBCAM, type=int, default=0,
-                    help="index of webcam on system")
+                        help="index of webcam on system")
     source.add_argument("-f", VIDEO_FILE, type=str, default="",
-                    help="Path to face video file")
+                        help="Path to face video file")
     args = vars(ap.parse_args())
     # todo fix this, why isn't -p working?
     args["shape_predictor"] = r"sources\shape_predictor_68_face_landmarks.dat"

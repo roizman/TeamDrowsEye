@@ -1,20 +1,15 @@
-# USAGE
-# python detect_drowsiness.py --shape-predictor shape_predictor_68_face_landmarks.dat
-# python detect_drowsiness.py --shape-predictor shape_predictor_68_face_landmarks.dat --alarm alarm.wav
+import argparse
+import time
 
-# import the necessary packages
-from scipy.spatial import distance as dist
-from imutils.video import VideoStream
-from imutils import face_utils
-from threading import Thread
+import cv2
+import dlib
+import imutils
 import numpy as np
 import playsound
-import matplotlib.pyplot as plt
-import argparse
-import imutils
-import time
-import dlib
-import cv2
+from imutils import face_utils
+from imutils.video import VideoStream
+from scipy.spatial import distance as dist
+
 
 
 def sound_alarm(path):
@@ -40,11 +35,12 @@ def eye_aspect_ratio(eye):
 
 
 def distance(point1, point2):
-	return np.sqrt( ((point1[0]-point2[0])**2) + ((point1[1]-point2[1])**2))
+    return np.sqrt(((point1[0] - point2[0]) ** 2) + ((point1[1] - point2[1]) ** 2))
+
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
-ap.add_argument("-p", "--shape-predictor", #required=True,
+ap.add_argument("-p", "--shape-predictor",  # required=True,
                 help="path to facial landmark predictor")
 ap.add_argument("-a", "--alarm", type=str, default="",
                 help="path alarm .WAV file")
@@ -79,9 +75,8 @@ predictor = dlib.shape_predictor(args["shape_predictor"])
 (mouthStart, mouthEnd) = face_utils.FACIAL_LANDMARKS_IDXS["mouth"]
 (noseStart, noseEnd) = face_utils.FACIAL_LANDMARKS_IDXS["nose"]
 
-
-#frameHeight = 1200
-#frameWidth = 680
+# frameHeight = 1200
+# frameWidth = 680
 
 print("Grabbing video stream from file in {0}".format("sources/sample3.avi"))
 file_vs = cv2.VideoCapture("sources/sample4.avi")
@@ -92,23 +87,21 @@ print("[INFO] starting video stream thread...")
 vs = VideoStream(src=args["webcam"]).start()
 time.sleep(1.0)
 
-
 # loop over frames from the video stream
 while True:
     # grab the frame from the threaded video file stream, resize
     # it, and convert it to grayscale
     # channels)
 
-
     ret, video_frame = file_vs.read()
 
-
     frame = vs.read()
-    frame = imutils.resize(frame, height=400)
+    frame = imutils.resize(frame, height=300)
 
     frame = cv2.flip(frame, 1)
 
-    video_frame = imutils.resize(video_frame, height=400)
+    #detect_logos(video_frame)
+    video_frame = imutils.resize(video_frame, height=300)
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     """
     print frame.shape[1]
@@ -139,7 +132,7 @@ while True:
         leftEAR = eye_aspect_ratio(leftEye)
         rightEAR = eye_aspect_ratio(rightEye)
 
-        #jaw = shape[jaw_start:jaw_end]
+        # jaw = shape[jaw_start:jaw_end]
 
         # average the eye aspect ratio together for both eyes
         ear = (leftEAR + rightEAR) / 2.0
@@ -151,7 +144,6 @@ while True:
 
         nose = shape[noseStart:noseEnd]
 
-
         jaw = shape[jaw_start:jaw_end]
         jawStart = jaw[0]
         jawEnd = jaw[len(jaw) - 1]
@@ -161,48 +153,43 @@ while True:
 
         rightEyeDistance = distance(jawStart, rightEyeEdge)
         leftEyeDistance = distance(jawEnd, leftEyeEdge)
-        eyeRatio = rightEyeDistance / leftEyeDistance 
+        eyeRatio = rightEyeDistance / leftEyeDistance
         rightThreshold = 5
         leftThreshold = (1 / float(rightThreshold))
-        bottomRight =  (int(0.9*frameWidth), int(0.7*frameHeight))
-        bottomMiddle = (int(0.45*frameWidth), int(0.7*frameHeight))
-        bottomLeft = (int(0.075*frameWidth), int(0.7*frameHeight))
-        yawnThreshold = int(0.06*frameHeight)
+        bottomRight = (int(0.9 * frameWidth), int(0.7 * frameHeight))
+        bottomMiddle = (int(0.45 * frameWidth), int(0.7 * frameHeight))
+        bottomLeft = (int(0.075 * frameWidth), int(0.7 * frameHeight))
+        yawnThreshold = int(0.06 * frameHeight)
 
-    	mouth = shape[mouthStart:mouthEnd]
-    	mouthTop = mouth[3]
-    	mouthBottom = mouth[9]
-    	cv2.line(frame, tuple(mouthTop), tuple(mouthBottom), (0, 0, 255), 2)
-    	# print distance(mouthTop, mouthBottom)
+        mouth = shape[mouthStart:mouthEnd]
+        mouthTop = mouth[3]
+        mouthBottom = mouth[9]
+        cv2.line(frame, tuple(mouthTop), tuple(mouthBottom), (0, 0, 255), 2)
+        # print distance(mouthTop, mouthBottom)
 
-		
-
-    	for point in range(1, len(mouth)) : 
-        	ptA = tuple(mouth[point - 1])
-        	ptB = tuple(mouth[point])
-        	cv2.line(frame, ptA, ptB, (255, 0, 0), 2)
+        for point in range(1, len(mouth)):
+            ptA = tuple(mouth[point - 1])
+            ptB = tuple(mouth[point])
+            cv2.line(frame, ptA, ptB, (255, 0, 0), 2)
 
         cv2.drawContours(frame, [leftEyeHull], -1, (0, 255, 0), 1)
         cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
         cv2.line(frame, tuple(jawStart), tuple(rightEyeEdge), (0, 0, 255), 2)
         cv2.line(frame, tuple(jawEnd), tuple(leftEyeEdge), (0, 0, 255), 2)
 
+        for point in range(1, len(jaw)):
+            ptA = tuple(jaw[point - 1])
+            ptB = tuple(jaw[point])
+            cv2.line(frame, ptA, ptB, (255, 0, 0), 2)
 
-        for point in range(1, len(jaw)) : 
-        	ptA = tuple(jaw[point - 1])
-        	ptB = tuple(jaw[point])
-        	cv2.line(frame, ptA, ptB, (255, 0, 0), 2)
+        chinPoint = jaw[8]
+        noseTip = nose[6]
+        # leftEyeEdge
+        # rightEyeEdge
+        leftMouthCorner = mouth[0]
+        rightMouthCorner = mouth[6]
 
-
-    	chinPoint = jaw[8]
-    	noseTip = nose[6]
-    	#leftEyeEdge
-    	#rightEyeEdge
-    	leftMouthCorner = mouth[0]
-    	rightMouthCorner = mouth[6]
-
-
-    	if True:
+        if True:
             frame_shape = frame.shape
             image_points = np.array([
                 noseTip,
@@ -216,20 +203,23 @@ while True:
             # 3D model points.
             model_points = np.array([
                 (0.0, 0.0, 0.0),  # Nose tip
-                (0.0, -(330.0/675)*frameHeight, -65.0),  # Chin
-                (-(225.0/1200)*frameWidth, (170.0/675)*frameHeight, -135.0),  # Left eye left corner
-                ((225.0/1200)*frameWidth, (170.0/675)*frameHeight, -135.0),  # Right eye right corner
-                (-(150.0/1200)*frameWidth, -(150.0/675)*frameHeight, -125.0),  # Left Mouth corner
-                ((150.0/1200)*frameWidth, -(150.0/675)*frameHeight, -125.0)  # Right mouth corner
+                (0.0, -(330.0 / 675) * frameHeight, -65.0),  # Chin
+                (-(225.0 / 1200) * frameWidth, (170.0 / 675) * frameHeight, -135.0),  # Left eye left corner
+                ((225.0 / 1200) * frameWidth, (170.0 / 675) * frameHeight, -135.0),  # Right eye right corner
+                (-(150.0 / 1200) * frameWidth, -(150.0 / 675) * frameHeight, -125.0),  # Left Mouth corner
+                ((150.0 / 1200) * frameWidth, -(150.0 / 675) * frameHeight, -125.0)  # Right mouth corner
             ])
 
             focal_length = frame_shape[1]
             center = (frame_shape[1] / 2, frame_shape[0] / 2)
-            camera_matrix = np.array([[focal_length, 0, center[0]], [0, focal_length, center[1]], [0, 0, 1]], dtype="double")
+            camera_matrix = np.array([[focal_length, 0, center[0]], [0, focal_length, center[1]], [0, 0, 1]],
+                                     dtype="double")
             dist_coeffs = np.zeros((4, 1))
-            (success, rotation_vector, translation_vector) = cv2.solvePnP(model_points, image_points, camera_matrix, dist_coeffs, flags=cv2.ITERATIVE)
+            (success, rotation_vector, translation_vector) = cv2.solvePnP(model_points, image_points, camera_matrix,
+                                                                          dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
 
-            (nose_end_point2D, jacobian) = cv2.projectPoints(np.array([(0.0, 0.0, 1000.0)]), rotation_vector, translation_vector, camera_matrix, dist_coeffs)
+            (nose_end_point2D, jacobian) = cv2.projectPoints(np.array([(0.0, 0.0, 1000.0)]), rotation_vector,
+                                                             translation_vector, camera_matrix, dist_coeffs)
 
             for p in image_points:
                 cv2.circle(frame, (int(p[0]), int(p[1])), 3, (0, 0, 255), -1)
@@ -248,16 +238,9 @@ while True:
             new_point = (int(video_frame.shape[1] * x_ratio), int(video_frame.shape[0] * y_ratio))
             cv2.circle(video_frame, new_point, 50, (0, 0, 255), 10)
 
-            print p1
-
-            
-
-
-	
-	both = np.hstack((frame,video_frame))
-    #cv2.imshow("Frame", frame)
-
-    cv2.imshow('imgc',both)
+            # print p1
+    both = np.hstack((frame, video_frame))
+    cv2.imshow('imgc', both)
 
     key = cv2.waitKey(1) & 0xFF
 
